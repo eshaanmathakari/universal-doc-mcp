@@ -1,129 +1,120 @@
-# Universal Docs MCP
+# scoutdocs-mcp
 
-MCP server that fetches latest **stable release** documentation for any package. Keeps AI coding agents up-to-date with current APIs instead of relying on stale training data.
+MCP server that fetches and **searches** the latest stable documentation for any package. Keeps AI coding agents in sync with current APIs instead of relying on stale training data.
+
+Two ways to run it:
+
+- **Local stdio** (Python) — installs into Claude Code / Claude Desktop / Cursor, can read your project's manifests.
+- **Hosted Worker** (Cloudflare) — public HTTPS endpoint at `/mcp`, no install required.
 
 ## Why
 
-LLMs are trained on a snapshot — the docs they "know" may be months or years old. This MCP gives Claude (or any MCP client) live access to the latest stable version info and documentation for packages across Python, JavaScript/TypeScript, and Rust.
+LLMs are trained on a snapshot — the docs they "know" may be months or years old. scoutdocs-mcp gives any MCP client live access to the latest stable version info, READMEs, and search results across docs sites for packages on **PyPI**, **npm**, and **crates.io**.
 
 ## How it works
 
 <p align="center">
-  <img src="docs/flowchart.svg" alt="Universal Docs MCP workflow" width="600">
+  <img src="docs/flowchart.svg" alt="scoutdocs-mcp workflow" width="600">
 </p>
-
-## Features
-
-- **Multi-ecosystem** — Python (PyPI), JavaScript/TypeScript (npm), Rust (crates.io)
-- **Stable releases only** — Pre-release versions (alpha, beta, RC, dev) are filtered using proper version parsing
-- **Cached** — SQLite cache with 24h TTL to avoid hammering registries
-- **GitHub-aware** — Falls back to GitHub README when registry docs aren't available; supports optional `GITHUB_TOKEN` for higher rate limits
-- **Context-efficient** — Documentation is truncated to 3000 characters to stay within LLM context budgets
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `get_package_info` | Get metadata: latest stable version, docs URL, description, license |
-| `get_package_docs` | Fetch actual documentation content (README/description) |
-| `cache_stats` | View cache hit/miss statistics |
+| Tool | Where | What it does |
+|------|-------|--------------|
+| `get_package_info` | local + hosted | Latest stable version, docs URL, repo, license |
+| `get_package_docs` | local + hosted | README / long-description content |
+| `search_package_docs` | local + hosted | Bounded discovery: docs URL, `llms.txt` / `llms-full.txt`, sitemap, same-host links — ranks pages by query match |
+| `detect_project_dependencies` | local only | Reads pyproject/requirements/uv.lock, package.json/package-lock, Cargo.toml/Cargo.lock |
+| `cache_stats` | local only | Local SQLite cache stats |
 
-### Example usage (from Claude Code)
+## Quickstart
+
+### Local (Python stdio)
+
+```bash
+pip install scoutdocs-mcp        # or: uv tool install scoutdocs-mcp
+```
+
+Add to Claude Code's MCP config (`~/.claude/claude_code_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "scoutdocs": {
+      "command": "uvx",
+      "args": ["--from", "scoutdocs-mcp", "scoutdocs-mcp"]
+    }
+  }
+}
+```
+
+For Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS), use the same shape.
+
+### Hosted (Cloudflare Worker)
+
+Point any MCP client at the public Streamable HTTP endpoint:
+
+```
+https://scoutdocs-mcp.<workers-subdomain>.workers.dev/mcp
+```
+
+The hosted endpoint is unauthenticated and rate-limited (60 MCP req/min, 10 search req/min per client IP). Search results are capped tighter than local (3 pages × 12k chars / 30k total) to fit Worker free-tier limits.
+
+## Example prompts
 
 ```
 > What's the latest version of flask?
-
 > Show me the docs for the serde crate
-
-> What license does express use?
+> Search the httpx docs for "transport"
+> What dependencies does this project declare?
 ```
-
-## Setup
-
-### With Claude Code
-
-Add to your Claude Code MCP config (`~/.claude/claude_code_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "universal-docs": {
-      "command": "python3",
-      "args": ["-m", "universal_docs_mcp.server"],
-      "cwd": "/path/to/universal-docs-mcp"
-    }
-  }
-}
-```
-
-Or with `uv` (no install needed):
-
-```json
-{
-  "mcpServers": {
-    "universal-docs": {
-      "command": "uvx",
-      "args": ["--from", "universal-docs-mcp", "universal-docs-mcp"]
-    }
-  }
-}
-```
-
-### With Claude Desktop
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
-
-```json
-{
-  "mcpServers": {
-    "universal-docs": {
-      "command": "python3",
-      "args": ["-m", "universal_docs_mcp.server"],
-      "cwd": "/path/to/universal-docs-mcp"
-    }
-  }
-}
-```
-
-## Install
-
-```bash
-# From PyPI
-pip install universal-docs-mcp
-
-# Or from source
-git clone https://github.com/solmonger/universal-docs-mcp
-cd universal-docs-mcp
-pip install -e .
-```
-
-Requires Python 3.10+.
 
 ## Configuration
 
-### GitHub Token (optional)
+### GitHub token (optional, local only)
 
-GitHub's unauthenticated API limit is 60 requests/hour. If you use this heavily, set a token to get 5,000 req/hr:
+Unauthenticated GitHub API allows 60 req/hr. A token (any scope) raises that to 5,000/hr — useful when fetching READMEs in bulk:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
 ```
 
-No scopes required — a fine-grained token with no permissions works fine. The token is only used for fetching public README content.
-
 ### Cache
 
-Documentation is cached in `~/.cache/universal-docs-mcp/cache.db` with a 24-hour TTL. Use the `cache_stats` tool to check cache state.
+- **Local stdio**: SQLite at `~/.cache/scoutdocs-mcp/cache.db`, 24h TTL.
+- **Hosted Worker**: Cloudflare KV, same 24h TTL, scoped per binding.
 
-## Supported Ecosystems
+### Search caps
+
+| | Hosted | Local default |
+|---|---|---|
+| Max pages | 3 | 8 |
+| Max chars/page | 12,000 | 20,000 |
+| Total cap | 30,000 | 120,000 |
+
+## Supported ecosystems
 
 | Ecosystem | Registry | Aliases |
 |-----------|----------|---------|
 | Python | PyPI | `python`, `pypi`, `pip` |
-| JavaScript/TypeScript | npm | `javascript`, `typescript`, `npm`, `js`, `ts` |
+| JavaScript / TypeScript | npm | `javascript`, `typescript`, `npm`, `js`, `ts` |
 | Rust | crates.io | `rust`, `cargo`, `crate` |
 
-If no ecosystem is specified, all registries are tried in order.
+If no ecosystem is specified, registries are tried in order.
+
+## Repository layout
+
+```
+src/scoutdocs_mcp/    Python stdio server (published as scoutdocs-mcp)
+worker/               Cloudflare Worker (TypeScript) for the hosted endpoint
+tests/                pytest suite (mocked HTTP)
+worker/test/          Vitest suite (Cloudflare workers pool)
+docs/RELEASE.md       Release & deployment runbook
+```
+
+## Status
+
+Beta (`0.2.0b1`). API stable; some discovery sources may evolve. Filed issues welcome at <https://github.com/eshaanmathakari/scoutdocs-mcp/issues>.
 
 ## License
 

@@ -1,33 +1,50 @@
 [project]
-name = "universal-docs-mcp"
-version = "0.1.0"
-description = "MCP server that fetches latest stable release documentation for any programming language, framework, or package"
+name = "scoutdocs-mcp"
+version = "0.2.0b1"
+description = "MCP server that fetches and searches latest stable documentation for packages on PyPI, npm, and crates.io."
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [
-    {name = "SolMonger"},
+    {name = "Eshaan Mathakari", email = "eshaan.mathakari@gmail.com"},
 ]
-keywords = ["mcp", "documentation", "ai", "agent", "coding"]
+keywords = ["mcp", "documentation", "ai", "agent", "coding", "pypi", "npm", "crates", "registry"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Documentation",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
 ]
 dependencies = [
     "mcp>=1.0.0",
     "httpx>=0.27.0",
     "pydantic>=2.0.0",
     "packaging>=23.0",
+    "tomli>=2.0.0; python_version<'3.11'",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-httpx>=0.30",
+]
+
+[project.urls]
+Homepage = "https://github.com/eshaanmathakari/scoutdocs-mcp"
+Repository = "https://github.com/eshaanmathakari/scoutdocs-mcp"
+Issues = "https://github.com/eshaanmathakari/scoutdocs-mcp/issues"
+Documentation = "https://github.com/eshaanmathakari/scoutdocs-mcp#readme"
+Changelog = "https://github.com/eshaanmathakari/scoutdocs-mcp/releases"
 
 [project.scripts]
-universal-docs-mcp = "universal_docs_mcp.server:main"
+scoutdocs-mcp = "scoutdocs_mcp.server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "universal-docs-mcp"
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "scoutdocs-mcp"
 DEFAULT_TTL = 86400  # 24 hours
 
 

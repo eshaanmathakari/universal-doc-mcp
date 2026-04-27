@@ -1,0 +1,15 @@
+{
+  "crate": {
+    "id": "serde",
+    "name": "serde",
+    "newest_version": "1.0.215",
+    "description": "A generic serialization/deserialization framework",
+    "homepage": "https://serde.rs",
+    "repository": "https://github.com/serde-rs/serde"
+  },
+  "versions": [
+    {"num": "1.0.215", "yanked": false, "license": "MIT OR Apache-2.0"},
+    {"num": "1.0.214", "yanked": false, "license": "MIT OR Apache-2.0"},
+    {"num": "2.0.0-alpha.1", "yanked": false, "license": "MIT OR Apache-2.0"}
+  ]
+}

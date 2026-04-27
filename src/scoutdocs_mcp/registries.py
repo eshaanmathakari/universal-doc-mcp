@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from typing import Optional
 from packaging.version import Version, InvalidVersion
 
+from . import __version__
+
+_UA = f"scoutdocs-mcp/{__version__} (+https://github.com/eshaanmathakari/scoutdocs-mcp)"
+
 
 @dataclass
 class PackageInfo:
@@ -24,7 +28,7 @@ class PackageInfo:
 
 async def fetch_pypi(package: str) -> Optional[PackageInfo]:
     """Fetch package info from PyPI."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": _UA}) as client:
         resp = await client.get(f"https://pypi.org/pypi/{package}/json")
         if resp.status_code != 200:
             return None
@@ -66,7 +70,7 @@ async def fetch_pypi(package: str) -> Optional[PackageInfo]:
 
 async def fetch_npm(package: str) -> Optional[PackageInfo]:
     """Fetch package info from npm registry."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": _UA}) as client:
         resp = await client.get(f"https://registry.npmjs.org/{package}")
         if resp.status_code != 200:
             return None
@@ -95,11 +99,8 @@ async def fetch_npm(package: str) -> Optional[PackageInfo]:
 
 async def fetch_crates(package: str) -> Optional[PackageInfo]:
     """Fetch package info from crates.io."""
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(
-            f"https://crates.io/api/v1/crates/{package}",
-            headers={"User-Agent": "universal-docs-mcp/0.1.0"},
-        )
+    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": _UA}) as client:
+        resp = await client.get(f"https://crates.io/api/v1/crates/{package}")
         if resp.status_code != 200:
             return None
         data = resp.json()

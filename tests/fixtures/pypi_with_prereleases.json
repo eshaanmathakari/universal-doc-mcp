@@ -1,0 +1,22 @@
+{
+  "info": {
+    "name": "experimental",
+    "version": "2.0.0rc1",
+    "summary": "A package with active prereleases.",
+    "description": "Long description for experimental package.",
+    "home_page": null,
+    "docs_url": null,
+    "license": "MIT",
+    "project_urls": {
+      "Source": "https://github.com/example/experimental"
+    }
+  },
+  "releases": {
+    "2.0.0rc1": [{"filename": "experimental-2.0.0rc1.tar.gz"}],
+    "2.0.0b2": [{"filename": "experimental-2.0.0b2.tar.gz"}],
+    "1.5.0": [{"filename": "experimental-1.5.0.tar.gz"}],
+    "1.4.0": [],
+    "1.3.0": [{"filename": "experimental-1.3.0.tar.gz"}],
+    "not-a-version": [{"filename": "weird.tar.gz"}]
+  }
+}

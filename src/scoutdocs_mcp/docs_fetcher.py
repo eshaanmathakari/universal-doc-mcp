@@ -9,13 +9,17 @@ import re
 from typing import Optional
 import httpx
 
+from . import __version__
+
+_UA = f"scoutdocs-mcp/{__version__} (+https://github.com/eshaanmathakari/scoutdocs-mcp)"
+_README_TRUNCATE = 3000
+
 
 async def fetch_readme_from_github(repo_url: str) -> Optional[str]:
     """Fetch README content from a GitHub repository."""
     if not repo_url:
         return None
 
-    # Normalize URL to API format
     match = re.search(r"github\.com/([^/]+/[^/]+)", repo_url)
     if not match:
         return None
@@ -23,48 +27,48 @@ async def fetch_readme_from_github(repo_url: str) -> Optional[str]:
     repo_path = match.group(1).rstrip("/")
     api_url = f"https://api.github.com/repos/{repo_path}/readme"
 
-    headers = {"Accept": "application/vnd.github.raw+json"}
+    headers = {
+        "Accept": "application/vnd.github.raw",
+        "User-Agent": _UA,
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(
-            api_url,
-            headers=headers,
-        )
+        resp = await client.get(api_url, headers=headers)
         if resp.status_code == 200:
             content = resp.text
-            # Truncate to first 3000 chars for context window efficiency
-            if len(content) > 3000:
-                content = content[:3000] + "\n\n... [truncated — see full docs]"
+            if len(content) > _README_TRUNCATE:
+                content = content[:_README_TRUNCATE] + "\n\n... [truncated — see full docs]"
             return content
     return None
 
 
 async def fetch_pypi_description(package: str) -> Optional[str]:
     """Fetch the long description from PyPI (usually README)."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": _UA}) as client:
         resp = await client.get(f"https://pypi.org/pypi/{package}/json")
         if resp.status_code != 200:
             return None
         data = resp.json()
         desc = data["info"].get("description", "")
-        if len(desc) > 3000:
-            desc = desc[:3000] + "\n\n... [truncated]"
+        if len(desc) > _README_TRUNCATE:
+            desc = desc[:_README_TRUNCATE] + "\n\n... [truncated]"
         return desc if desc else None
 
 
 async def fetch_npm_readme(package: str) -> Optional[str]:
     """Fetch README from npm registry."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=15, headers={"User-Agent": _UA}) as client:
         resp = await client.get(f"https://registry.npmjs.org/{package}")
         if resp.status_code != 200:
             return None
         data = resp.json()
         readme = data.get("readme", "")
-        if len(readme) > 3000:
-            readme = readme[:3000] + "\n\n... [truncated]"
+        if len(readme) > _README_TRUNCATE:
+            readme = readme[:_README_TRUNCATE] + "\n\n... [truncated]"
         return readme if readme and readme != "ERROR: No README data found!" else None
 
 

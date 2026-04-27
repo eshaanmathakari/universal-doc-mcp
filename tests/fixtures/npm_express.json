@@ -1,0 +1,19 @@
+{
+  "name": "express",
+  "description": "Fast, unopinionated, minimalist web framework",
+  "dist-tags": {"latest": "4.21.1"},
+  "homepage": "http://expressjs.com/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/expressjs/express.git"
+  },
+  "readme": "# Express\n\nFast, unopinionated, minimalist web framework for Node.js.\n\n```bash\nnpm install express\n```",
+  "versions": {
+    "4.21.1": {
+      "name": "express",
+      "version": "4.21.1",
+      "homepage": "http://expressjs.com/",
+      "license": "MIT"
+    }
+  }
+}

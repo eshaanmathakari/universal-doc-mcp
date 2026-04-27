@@ -1,12 +1,11 @@
-"""Universal Docs MCP Server.
+"""scoutdocs-mcp server (stdio).
 
-Provides tools for fetching latest stable documentation for any package.
-
-Tools:
-  get_package_info    — Get metadata (version, docs URL, description)
-  get_package_docs    — Get actual documentation content
-  search_package      — Search across registries
-  get_changelog       — Get recent changes/releases
+Tools exposed to the MCP client:
+  get_package_info             Latest stable version + metadata
+  get_package_docs             README / long description content
+  search_package_docs          Bounded discovery across docs sites
+  detect_project_dependencies  Inspect local manifests/lockfiles
+  cache_stats                  Local cache statistics
 """
 
 import asyncio
@@ -18,14 +17,23 @@ import mcp.server.stdio
 import mcp.types as types
 from mcp.server import Server
 
+from pathlib import Path
+
 from .registries import fetch_package, REGISTRY_MAP
 from .docs_fetcher import fetch_docs_content
 from .cache import DocsCache
+from .manifests import detect_project_dependencies
+from .search import (
+    DEFAULT_MAX_PAGES,
+    DEFAULT_CHARS_PER_PAGE,
+    DEFAULT_TOTAL_CHARS,
+    search_package_docs,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-server = Server("universal-docs")
+server = Server("scoutdocs")
 cache = DocsCache()
 
 
@@ -78,6 +86,59 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="search_package_docs",
+            description=(
+                "Search a package's documentation for a query. Discovers pages from "
+                "the registry's docs/homepage, llms.txt / llms-full.txt, sitemap.xml, "
+                "and same-host links. Returns the highest-scoring pages with source URLs. "
+                "Bounded to a small set of pages and characters."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "package": {"type": "string", "description": "Package name"},
+                    "query": {
+                        "type": "string",
+                        "description": "Free-text query (matched case-insensitively)",
+                    },
+                    "ecosystem": {
+                        "type": "string",
+                        "description": "Language/ecosystem (auto-detected if omitted)",
+                        "enum": list(set(REGISTRY_MAP.keys())),
+                    },
+                    "max_pages": {
+                        "type": "integer",
+                        "description": f"Max pages to return (default {DEFAULT_MAX_PAGES})",
+                        "minimum": 1,
+                        "maximum": 20,
+                    },
+                },
+                "required": ["package", "query"],
+            },
+        ),
+        types.Tool(
+            name="detect_project_dependencies",
+            description=(
+                "Inspect manifests/lockfiles in a local project directory and return "
+                "the declared dependencies. Supports Python (pyproject.toml, "
+                "requirements*.txt, uv.lock), npm (package.json, package-lock.json), "
+                "and Rust (Cargo.toml, Cargo.lock). Local-only — runs on the user's machine."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "root": {
+                        "type": "string",
+                        "description": "Project root directory (defaults to the server's cwd).",
+                    },
+                    "include_dev": {
+                        "type": "boolean",
+                        "description": "Include dev/test/peer dependencies (default false).",
+                    },
+                },
+            },
+        ),
+        types.Tool(
             name="cache_stats",
             description="Get cache statistics (total entries, valid, expired).",
             inputSchema={"type": "object", "properties": {}},
@@ -91,11 +152,70 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return await _handle_get_info(arguments)
     elif name == "get_package_docs":
         return await _handle_get_docs(arguments)
+    elif name == "search_package_docs":
+        return await _handle_search(arguments)
+    elif name == "detect_project_dependencies":
+        return _handle_detect(arguments)
     elif name == "cache_stats":
         stats = cache.stats()
         return [types.TextContent(type="text", text=json.dumps(stats, indent=2))]
     else:
         return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+
+
+def _handle_detect(args: dict) -> list[types.TextContent]:
+    root_arg = args.get("root")
+    include_dev = bool(args.get("include_dev", False))
+    root = Path(root_arg).expanduser() if root_arg else None
+    deps = detect_project_dependencies(root=root, include_dev=include_dev)
+    payload = {
+        "root": str(root or Path.cwd()),
+        "include_dev": include_dev,
+        "count": len(deps),
+        "dependencies": [
+            {
+                "name": d.name,
+                "ecosystem": d.ecosystem,
+                "declared_version": d.declared_version,
+                "source_file": d.source_file,
+                "is_dev": d.is_dev,
+            }
+            for d in deps
+        ],
+    }
+    return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
+
+
+async def _handle_search(args: dict) -> list[types.TextContent]:
+    package = args["package"]
+    query = args["query"]
+    ecosystem = args.get("ecosystem")
+    max_pages = int(args.get("max_pages") or DEFAULT_MAX_PAGES)
+
+    cache_key = f"search:{ecosystem or 'auto'}:{package}:{max_pages}:{query.lower()}"
+    cached = cache.get(cache_key)
+    if cached:
+        return [types.TextContent(type="text", text=cached["rendered"])]
+
+    result = await search_package_docs(
+        package,
+        query,
+        ecosystem=ecosystem,
+        max_pages=max_pages,
+        max_chars_per_page=DEFAULT_CHARS_PER_PAGE,
+        max_total_chars=DEFAULT_TOTAL_CHARS,
+    )
+    if result is None:
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Package '{package}' not found"
+                + (f" in {ecosystem}" if ecosystem else " in any registry"),
+            )
+        ]
+    rendered = result.render()
+    cache.set(cache_key, {"rendered": rendered})
+    return [types.TextContent(type="text", text=rendered)]
 
 
 async def _handle_get_info(args: dict) -> list[types.TextContent]:
