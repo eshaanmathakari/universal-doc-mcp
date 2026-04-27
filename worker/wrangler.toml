@@ -1,0 +1,32 @@
+name = "scoutdocs-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# 24h cache for registry + docs lookups
+[[kv_namespaces]]
+binding = "CACHE"
+id = "f1106b0abcbb4079a8abf8f0082328ee"
+preview_id = "9f448041c3b94f9184ce641788ca65c4"
+
+# 60 MCP requests / minute per client IP.
+[[ratelimits]]
+name = "RATE_LIMIT_MCP"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
+
+# 10 search calls / minute per client IP (search is more expensive).
+[[ratelimits]]
+name = "RATE_LIMIT_SEARCH"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }
+
+[vars]
+SCOUTDOCS_VERSION = "0.2.0-beta.1"
+CACHE_TTL_SECONDS = "86400"
+SEARCH_MAX_PAGES = "3"
+SEARCH_MAX_CHARS_PER_PAGE = "12000"
+SEARCH_MAX_TOTAL_CHARS = "30000"
